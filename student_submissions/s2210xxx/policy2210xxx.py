@@ -73,7 +73,6 @@ class Policy2211960(Policy):
 
         return {"stock_idx": stockID, "size": productSize, "position": (pos_x, pos_y)}
 
-
 # Dynamic Programming
 ## Tìm vị trí tốt nhất để đặt product hiện tại
 ## Hao phí được tính theo số lượng ô trống (lãng phí) xung quanh product
