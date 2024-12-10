@@ -1,144 +1,149 @@
 from policy import Policy
 
 
-def Policy2210xxx(Policy):
-    def __init__(self):
+class Policy2210xxx(Policy):
+    def __init__(self, policy_id=1):
+        assert policy_id in [1, 2], "Policy ID must be 1 or 2"
         # Student code here
-        pass
+        self.policy_id = policy_id
+        if policy_id == 1:
+            pass
+        elif policy_id == 2:
+            # Cache best_pos_in_stock thay vì waste vì quy mô lớn hơn
+            # Một giá trị cache có hiệu lực cho đến khi trạng thái stock đó thay đổi
+            self.best_pos_in_stock_cache = {}
 
     def get_action(self, observation, info):
-        # Student code here
-        pass
+        #FIRST-FIT DECREASING ALGORITHM
+        if self.policy_id == 1: 
+            # Sort products by their areas in descending order
+            proSortedList = sorted(
+                observation["products"], # List of products' information
+                key=lambda prod: prod["size"][0] * prod["size"][1], # Products' area
+                reverse=True # Set descending order
+            )
+
+            productSize = [0, 0]
+            stockID = -1
+            pos_x, pos_y = 0, 0
+
+            # Iterate over sorted products list
+            for prod in proSortedList:
+                if prod["quantity"] > 0:
+                    productSize = prod["size"]
+                    productW, productH = productSize
+
+                    # Find suitable stock for valid position to place product
+                    for i, stock in enumerate(observation["stocks"]):
+                        stockW, stockH = self._get_stock_size_(stock)
+                        # If product is smaller than stock, find position in it
+                        if stockW >= productW or stockH >= productH:
+                            pos_x, pos_y = None, None
+                            for x in range(stockW - productW + 1):
+                                for y in range(stockH - productH + 1):
+                                    if self._can_place_(stock, (x, y), productSize):
+                                        pos_x, pos_y = x, y
+                                        break
+                                if pos_x is not None and pos_y is not None:
+                                    break
+                            if pos_x is not None and pos_y is not None:
+                                stockID = i
+                                break
+                        # If valid position is unfound, 
+                        # find again in this stock for position that fit product with reverse dimension
+                        if pos_x is None and stockW >= productH and stockH >= productW:
+                            pos_x, pos_y = None, None
+                            for x in range(stockW - productH + 1):
+                                for y in range(stockH - productW + 1):
+                                    if self._can_place_(stock, (x, y), productSize[::-1]):
+                                        # If position is found, rotate product and update it's dimension
+                                        productSize = productSize[::-1]
+                                        pos_x, pos_y = x, y
+                                        break
+                                if pos_x is not None and pos_y is not None:
+                                    break
+                            if pos_x is not None and pos_y is not None:
+                                stockID = i
+                                break
+                        
+                    # If position is found, break and return information of action
+                    if pos_x is not None and pos_y is not None:
+                        break
+
+            return {"stock_idx": stockID, "size": productSize, "position": (pos_x, pos_y)}
+        
+        #DYNAMIC PROGAMMING ALGORITHM
+        ## Tìm vị trí tốt nhất để đặt product hiện tại
+        ## Hao phí được tính theo số lượng ô trống (lãng phí) xung quanh product
+        ## Cache vị trí tốt nhất để đặt prod_size vào trạng thái 1 stock (tính theo quick waste)
+        elif self.policy_id == 2: 
+            # Sort products theo diện tích giảm dần
+            products = sorted(observation["products"], 
+                            key=lambda x: x["size"][0] * x["size"][1],
+                            reverse=True)
+            stocks = observation["stocks"]
+            
+            # Lấy product để đặt
+            for prod in products:
+                if prod["quantity"] > 0:
+                    # Tìm vị trí tốt nhất để đặt product
+                    best_pos = None
+                    best_pos = self.get_best_pos(stocks, prod)
+                    # Trả best pos
+                    if best_pos:
+                        stock_idx, (pos_x, pos_y) = best_pos
+                        prod_size = prod["size"]
+                        return {
+                            "stock_idx": stock_idx,
+                            "size": prod_size,
+                            "position": (pos_x, pos_y)
+                        }
+            
+            # Trả action mặc định nếu không tìm được vị trí đặt
+            return {"stock_idx": -1, "size": [0, 0], "position": (0, 0)}
+        
+        else:
+            print(f"Invalid policy_id\n")
 
     # Student code here
     # You can add more functions if needed
-
-
-class Policy2211960(Policy):
-    def __init__(self):
-        self.sWidth = None
-        self.sHeight = None
-
-    def getStockSize(self):
-        
-        return self.sWidth * self.sHeight
-    
-    def get_action(self, observation, info):
-
-        # Sort products by their areas in descending order
-        proSortedList = sorted(
-            observation["products"], # List of products' information
-            key=lambda prod: prod["size"][0] * prod["size"][1], # Products' area
-            reverse=True # Set descending order
-        )
-
-        productSize = [0, 0]
-        stockID = -1
-        pos_x, pos_y = 0, 0
-
-        # Iterate over sorted products list
-        for prod in proSortedList:
-            if prod["quantity"] > 0:
-                productSize = prod["size"]
-                productW, productH = productSize
-
-                # Find suitable stock for valid position to place product
-                for i, stock in enumerate(observation["stocks"]):
-                    stockW, stockH = self._get_stock_size_(stock)
-                    self.sWidth = stockW
-                    self.sHeight = stockH
-
-                    # If stock's size is smaller than product's, pass it
-                    if stockW < productW or stockH < productH:
-                        continue
-
-                    # Check all possible position in stock if it's fit to cut product 
-                    pos_x, pos_y = None, None
-                    for x in range(stockW - productW + 1):
-                        for y in range(stockH - productH + 1):
-                            if self._can_place_(stock, (x, y), productSize):
-                                # If this position is adapted, save it and stop checking other position in height
-                                pos_x, pos_y = x, y 
-                                break
-                        # If position is found, stop checking other position in width
-                        if pos_x is not None and pos_y is not None:
-                            break
-                    # If position is found, store the index of stock
-                    if pos_x is not None and pos_y is not None:
-                        stockID = i
-                        break
-                # If position is found, break and return information of action
-                if pos_x is not None and pos_y is not None:
-                    break
-
-        return {"stock_idx": stockID, "size": productSize, "position": (pos_x, pos_y)}
-
-# Dynamic Programming
-## Tìm vị trí tốt nhất để đặt product hiện tại
-## Hao phí được tính theo số lượng ô trống (lãng phí) xung quanh product
-## Cache vị trí tốt nhất để đặt prod_size vào trạng thái 1 stock (tính theo quick waste)
-class Policy2313109(Policy):
-    def __init__(self):
-        # Cache best_pos_in_stock thay vì waste vì quy mô lớn hơn
-        # Một giá trị cache có hiệu lực cho đến khi trạng thái stock đó thay đổi
-        self.best_pos_in_stock_cache = {}
-        
-    def get_action(self, observation, info):
-        # Sort products theo diện tích giảm dần
-        products = sorted(observation["products"], 
-                        key=lambda x: x["size"][0] * x["size"][1],
-                        reverse=True)
-        stocks = observation["stocks"]
-        
-        # Lấy product để đặt
-        for prod in products:
-            if prod["quantity"] > 0:
-                # Tìm vị trí tốt nhất để đặt product
-                best_pos = None
-                best_pos = self.get_best_pos(stocks, prod)
-                # Trả best pos
-                if best_pos:
-                    stock_idx, (pos_x, pos_y) = best_pos
-                    return {
-                        "stock_idx": stock_idx,
-                        "size": prod["size"],
-                        "position": (pos_x, pos_y)
-                    }
-        
-        # Trả action mặc định nếu không tìm được vị trí đặt
-        return {"stock_idx": -1, "size": [0, 0], "position": (0, 0)}
     
     def get_best_pos(self, stocks, product):
         # Tìm vị trí tốt nhất để đặt product trong tất cả các stock
         # Phạm vi duyệt từng stock
         # Lấy best_in_stock của từng stock, tính true waste để lấy best_in_stock tốt nhất
-        prod_w, prod_h = product["size"]
+        original_prod = product["size"]
+        rotated_prod = original_prod[::-1]
         
         best_pos = None
         min_waste = float('inf')
         
-        # Duyệt qua các stock
-        for stock_idx, stock in enumerate(stocks):
-            stock_w, stock_h = self._get_stock_size_(stock)
-            # Bỏ qua stock quá nhỏ
-            if stock_w < prod_w or stock_h < prod_h:
-                continue
-            
-            # Lấy best_in_stock = vị trí tốt nhất cho stock hiện tại theo quick waste
-            # Lấy từ cache nếu có, tính toán nếu không
-            cache_key = (stock.tobytes(), prod_w, prod_h)
-            if cache_key in self.best_pos_in_stock_cache:
-                best_in_stock = self.best_pos_in_stock_cache[cache_key]
-            else:
-                best_in_stock = self.best_pos_in_stock(stock, product["size"])
-                self.best_pos_in_stock_cache[cache_key] = best_in_stock
-            
-            # True waste chỉ tính cho best_in_stock để đảm bảo hiệu năng
-            if best_in_stock:
-                waste = self.true_waste(stock, best_in_stock, product["size"])
-                if waste < min_waste:
-                    min_waste = waste
-                    best_pos = (stock_idx, best_in_stock)
+        for prod_size in [original_prod, rotated_prod]:
+            prod_w, prod_h = prod_size
+            # Duyệt qua các stock
+            for stock_idx, stock in enumerate(stocks):
+                stock_w, stock_h = self._get_stock_size_(stock)
+                # Bỏ qua stock quá nhỏ
+                if stock_w < prod_w or stock_h < prod_h:
+                    continue
+                
+                # Lấy best_in_stock = vị trí tốt nhất cho stock hiện tại theo quick waste
+                # Lấy từ cache nếu có, tính toán nếu không
+                cache_key = (stock.tobytes(), prod_w, prod_h)
+                if cache_key in self.best_pos_in_stock_cache:
+                    best_in_stock = self.best_pos_in_stock_cache[cache_key]
+                else:
+                    best_in_stock = self.best_pos_in_stock(stock, prod_size)
+                    self.best_pos_in_stock_cache[cache_key] = best_in_stock
+                
+                # True waste chỉ tính cho best_in_stock để đảm bảo hiệu năng
+                if best_in_stock:
+                    waste = self.true_waste(stock, best_in_stock, prod_size)
+                    # if better
+                    if waste < min_waste:
+                        min_waste = waste
+                        best_pos = (stock_idx, best_in_stock)
+                        product["size"] = prod_size
         
         # best_pos = (stock_idx, (x, y))
         return best_pos
