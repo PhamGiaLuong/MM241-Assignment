@@ -92,9 +92,10 @@ class Policy2210xxx(Policy):
                     # Trả best pos
                     if best_pos:
                         stock_idx, (pos_x, pos_y) = best_pos
+                        prod_size = prod["size"]
                         return {
                             "stock_idx": stock_idx,
-                            "size": prod["size"],
+                            "size": prod_size,
                             "position": (pos_x, pos_y)
                         }
             
@@ -111,33 +112,38 @@ class Policy2210xxx(Policy):
         # Tìm vị trí tốt nhất để đặt product trong tất cả các stock
         # Phạm vi duyệt từng stock
         # Lấy best_in_stock của từng stock, tính true waste để lấy best_in_stock tốt nhất
-        prod_w, prod_h = product["size"]
+        original_prod = product["size"]
+        rotated_prod = original_prod[::-1]
         
         best_pos = None
         min_waste = float('inf')
         
-        # Duyệt qua các stock
-        for stock_idx, stock in enumerate(stocks):
-            stock_w, stock_h = self._get_stock_size_(stock)
-            # Bỏ qua stock quá nhỏ
-            if stock_w < prod_w or stock_h < prod_h:
-                continue
-            
-            # Lấy best_in_stock = vị trí tốt nhất cho stock hiện tại theo quick waste
-            # Lấy từ cache nếu có, tính toán nếu không
-            cache_key = (stock.tobytes(), prod_w, prod_h)
-            if cache_key in self.best_pos_in_stock_cache:
-                best_in_stock = self.best_pos_in_stock_cache[cache_key]
-            else:
-                best_in_stock = self.best_pos_in_stock(stock, product["size"])
-                self.best_pos_in_stock_cache[cache_key] = best_in_stock
-            
-            # True waste chỉ tính cho best_in_stock để đảm bảo hiệu năng
-            if best_in_stock:
-                waste = self.true_waste(stock, best_in_stock, product["size"])
-                if waste < min_waste:
-                    min_waste = waste
-                    best_pos = (stock_idx, best_in_stock)
+        for prod_size in [original_prod, rotated_prod]:
+            prod_w, prod_h = prod_size
+            # Duyệt qua các stock
+            for stock_idx, stock in enumerate(stocks):
+                stock_w, stock_h = self._get_stock_size_(stock)
+                # Bỏ qua stock quá nhỏ
+                if stock_w < prod_w or stock_h < prod_h:
+                    continue
+                
+                # Lấy best_in_stock = vị trí tốt nhất cho stock hiện tại theo quick waste
+                # Lấy từ cache nếu có, tính toán nếu không
+                cache_key = (stock.tobytes(), prod_w, prod_h)
+                if cache_key in self.best_pos_in_stock_cache:
+                    best_in_stock = self.best_pos_in_stock_cache[cache_key]
+                else:
+                    best_in_stock = self.best_pos_in_stock(stock, prod_size)
+                    self.best_pos_in_stock_cache[cache_key] = best_in_stock
+                
+                # True waste chỉ tính cho best_in_stock để đảm bảo hiệu năng
+                if best_in_stock:
+                    waste = self.true_waste(stock, best_in_stock, prod_size)
+                    # if better
+                    if waste < min_waste:
+                        min_waste = waste
+                        best_pos = (stock_idx, best_in_stock)
+                        product["size"] = prod_size
         
         # best_pos = (stock_idx, (x, y))
         return best_pos
